@@ -10,6 +10,11 @@ module Domain =
     | Black
     | White
 
+    let colorStr color =
+        match color with
+        | Black -> "Black"
+        | White -> "White"
+
     type Player = {
             Color: PlayerColor
             CompletedRows: int
@@ -39,7 +44,8 @@ module Domain =
     type Position = {
             Letter: string
             Number: int
-        }
+        } with
+        override x.ToString() = sprintf "(%s, %i)" x.Letter x.Number
 
     type Intersection = {
         mutable Status: Status
