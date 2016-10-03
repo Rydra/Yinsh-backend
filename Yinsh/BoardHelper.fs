@@ -36,16 +36,27 @@ let possibleDirections = [Top; TopLeft; TopRight; Bottom; BottomLeft; BottomRigh
 /// All these peculiarities and exceptions will end up becoming a source of ifs and cases, which by themselves
 /// pose a maintainability problem (we will have to think of a better alternative)
 let initializeBoard() : Board =
-    let coordinates = 
+    let intersections = 
         [ for KeyValue (letter, lst) in validRanges do
             for num in lst do
-                yield { Status = Empty; Position = { Letter = letter; Number = num } }
+                let pos = { Letter = letter; Number = num }
+                yield (pos, { Status = Empty; Position = pos })
         ]
 
-    { CoordList = coordinates }
+    { Intersections = intersections |> dict }
 
-let findCoordInBoard board pos =
-    board.CoordList |> List.find(fun x -> x.Position = pos)
+let newGame() =
+    let whitePlayer = { Color = White; CompletedRows = 0 }
+    let blackPlayer = { Color = Black; CompletedRows = 0 }
+    let players = [|whitePlayer; blackPlayer|]
+    let gameStatus = InProgress
+    let board = initializeBoard()
+    let currentPhase = Start(ringsPlaced = 0)
+    { Players = players; Active = whitePlayer; GameStatus = gameStatus; Board = board; CurrentPhase = currentPhase }
+
+let findIntersectionInBoard board pos =
+    let found, intersection = board.Intersections.TryGetValue(pos)
+    if found then Some intersection else None
 
 let findLetterIndex (letter:string) =
     letterOrders |> List.findIndex (fun x -> x = letter)
@@ -58,40 +69,53 @@ let validateNum n =
     if n < 1 || n > 11 then None
     else Some n
 
-// TODO: This check can be way further optimized.
-// Tells whether a given coordinate is in the range of the board and exists
-let coordinateExists position =
-    validRanges.[position.Letter] |> List.exists(fun n -> n = position.Number)
+let invertColor color =
+    match color with 
+    | Black -> White
+    | White -> Black
+
+
 
 // Given a position and a direction, get the next coordinate. If the
-// Coordinate is not valid for a Yinsh board, this function returns None
-let getNextCoordinateInDir board pos dir =
+// CoordgetNextIntersectionInDir a Yinsh board, this function returns None
+let getNextIntersectionInDir board pos dir i =
     let num = pos.Number
     let letter = pos.Letter
 
     // obtain the next progression given a direction
     let nextnum =
         match dir with
-        | Top | TopRight -> num + 1 |> validateNum
+        | Top | TopRight -> num + i |> validateNum
         | TopLeft | BottomRight -> num |> validateNum
-        | Bottom | BottomLeft -> num - 1 |> validateNum
+        | Bottom | BottomLeft -> num - i |> validateNum
 
     let nextLetter : string option =
         match dir with
         | Top | Bottom -> Some(letter)
-        | TopLeft | BottomLeft -> (letter |> findLetterIndex) - 1 |> getLetterByIndex
-        | TopRight | BottomRight -> letter |> findLetterIndex |> (+) 1 |> getLetterByIndex
+        | TopLeft | BottomLeft -> (letter |> findLetterIndex) - i |> getLetterByIndex
+        | TopRight | BottomRight -> letter |> findLetterIndex |> (+) i |> getLetterByIndex
 
     // Validate the coordinate and recurse
     match (nextnum, nextLetter) with
     | (Some nn, Some nl) -> 
         let newPos = { Letter = nl; Number = nn }
-        if coordinateExists newPos then
-            let coord = findCoordInBoard board newPos
-            Some coord
-        else None
+        findIntersectionInBoard board newPos
     | _ -> None
 
-let putPieceOnCoord board pos piece =
-    let c = findCoordInBoard board pos
-    c.Status <- Filled(piece)
+let putPieceOnIntersection board pos piece =
+    match findIntersectionInBoard board pos with
+    | Some intersection -> intersection.Status <- Filled(piece)
+    | None -> ()
+
+let emptyIntersection board pos =
+    match findIntersectionInBoard board pos with
+    | Some intersection -> intersection.Status <- Empty
+    | None -> ()
+
+let flipToken board pos =
+    match findIntersectionInBoard board pos with
+    | Some intersection -> 
+        match intersection.Status with
+        | Filled(p) when p.Type = Token -> intersection.Status <- Filled({ p with Color = invertColor p.Color })
+        | _ -> ()
+    | None -> ()

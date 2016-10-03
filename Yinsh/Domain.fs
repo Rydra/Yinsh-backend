@@ -2,12 +2,18 @@
 
 namespace Yinshbackend
 open System
+open System.Collections.Generic
 
 module Domain =
 
     type PlayerColor =
     | Black
     | White
+
+    type Player = {
+            Color: PlayerColor
+            CompletedRows: int
+        }
 
     type PieceType =
     | Ring
@@ -35,11 +41,27 @@ module Domain =
             Number: int
         }
 
-    type Coord = {
+    type Intersection = {
         mutable Status: Status
         Position: Position
         }
 
+    type GameStatus =
+    | InProgress
+    | Finished of winner: Player
+
+    type Phase =
+    | Start of ringsPlaced: int
+    | Main
+
     type Board = {
-        CoordList: Coord list
+        Intersections: IDictionary<Position, Intersection>
+        }
+
+    type GameState = {
+            Players: Player[]
+            GameStatus: GameStatus
+            Active: Player
+            Board: Board
+            CurrentPhase: Phase
         }
