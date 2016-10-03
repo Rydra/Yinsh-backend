@@ -57,8 +57,11 @@ module Domain =
     | Finished of winner: Player
 
     type Phase =
-    | Start of ringsPlaced: int
-    | Main
+    | PlaceRing of ringsPlaced: int
+    | PlaceToken
+    | MoveRing of ringToMoMove: Intersection
+    | RemoveRows of rowsToRemove: Position list list
+    | RemoveRing
 
     type Board = {
         Intersections: IDictionary<Position, Intersection>

@@ -51,7 +51,7 @@ let newGame() =
     let players = [|whitePlayer; blackPlayer|]
     let gameStatus = InProgress
     let board = initializeBoard()
-    let currentPhase = Start(ringsPlaced = 0)
+    let currentPhase = PlaceRing(ringsPlaced = 0)
     { Players = players; Active = whitePlayer; GameStatus = gameStatus; Board = board; CurrentPhase = currentPhase }
 
 let findIntersectionInBoard board pos =

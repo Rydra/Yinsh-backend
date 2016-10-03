@@ -1,12 +1,10 @@
-﻿// Learn more about F# at http://fsharp.net
-// See the 'F# Tutorial' project for more help.
+﻿module Yss
 
 open Yinshbackend.Domain
 open BoardHelper
 open System
 open BusinessRules
-open PlayRingsPhase
-open PlaceTokensPhase
+open Phases
 
 let rec askForPosition() =
     let input = Console.ReadLine().Split(' ')
@@ -21,7 +19,6 @@ let rec askForPosition() =
 
 [<EntryPoint>]
 let main argv = 
-
     let newGame = newGame()
 
     let rec play gameState =
@@ -30,15 +27,21 @@ let main argv =
         | Finished(player) -> gameState
         | InProgress ->
             match gameState.CurrentPhase with
-            | Start(ringsPlaced) ->
-                let newGameState = playRingPhaseTurn gameState ringsPlaced
+            | PlaceRing(ringsPlaced) ->
+                let newGameState = playRing gameState ringsPlaced
                 play newGameState
-            | Main ->
-                let newGameState = playPlaceTokenTurn gameState
+            | PlaceToken ->
+                let newGameState = playPlaceToken gameState
                 play newGameState
-            | _ ->
-                printfn "Please provide an empty intersection for marker placement"
-                play gameState
+            | MoveRing(ringIntersection) ->
+                let newGameState = playMoveRing gameState ringIntersection
+                play newGameState
+            | RemoveRows(rowsToRemove) ->
+                let newGameState = playRemoveRow gameState rowsToRemove
+                play newGameState
+            | RemoveRing ->
+                let newGameState = playRemoveRing gameState
+                play newGameState
 
     play newGame |> ignore
     0 // return an integer exit code

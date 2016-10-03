@@ -54,12 +54,11 @@
     <Compile Include="Domain.fs" />
     <Compile Include="BoardHelper.fs" />
     <Compile Include="BusinessRules.fs" />
-    <Compile Include="PlayRingsPhase.fs" />
-    <Compile Include="PlaceTokensPhase.fs" />
     <Compile Include="Rendering.fs" />
     <Compile Include="Program.fs" />
     <None Include="App.config" />
     <None Include="packages.config" />
+    <Compile Include="Phases.fs" />
   </ItemGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
