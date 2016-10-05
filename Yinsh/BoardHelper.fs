@@ -1,12 +1,14 @@
 ﻿module BoardHelper
 
-open Yinshbackend.Domain
+open Domain
 
 let letterOrders = ["A"; "B"; "C"; "D"; "E"; "F"; "G"; "H"; "I"; "J"; "K"]
 
 /// This range defines the valid coordinates of a Yinsh board.
 /// Yinsh board is quite weird in terms of shape and coords, so we define,
 /// for every letter coordinate, the valid number coordinates that may result
+///
+/// LRN: You can define dictionaries with a list of tuples
 let validRanges = 
     dict [
             "A", [2 .. 5]
@@ -45,15 +47,6 @@ let initializeBoard() : Board =
 
     { Intersections = intersections |> dict }
 
-let newGame() =
-    let whitePlayer = { Color = White; CompletedRows = 0 }
-    let blackPlayer = { Color = Black; CompletedRows = 0 }
-    let players = [|whitePlayer; blackPlayer|]
-    let gameStatus = InProgress
-    let board = initializeBoard()
-    let currentPhase = PlaceRing(ringsPlaced = 0)
-    { Players = players; Active = whitePlayer; GameStatus = gameStatus; Board = board; CurrentPhase = currentPhase }
-
 let findIntersectionInBoard board pos =
     let found, intersection = board.Intersections.TryGetValue(pos)
     if found then Some intersection else None
@@ -68,13 +61,6 @@ let getLetterByIndex idx =
 let validateNum n =
     if n < 1 || n > 11 then None
     else Some n
-
-let invertColor color =
-    match color with 
-    | Black -> White
-    | White -> Black
-
-
 
 // Given a position and a direction, get the next coordinate. If the
 // CoordgetNextIntersectionInDir a Yinsh board, this function returns None

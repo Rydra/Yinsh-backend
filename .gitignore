@@ -3,3 +3,8 @@
 ################################################################################
 
 /.vs/Yinsh-backend/v14/.suo
+/packages
+/Yinsh/obj/Debug
+/Yinsh/bin/Debug
+/Yinsh.Tests/bin/Debug
+/Yinsh.Tests/obj/Debug
