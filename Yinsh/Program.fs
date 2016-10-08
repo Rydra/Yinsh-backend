@@ -1,7 +1,6 @@
 ﻿/// LRN: "open" imports a module or namespace to have the functions
 /// or classes inside the module available
 open Domain
-open BoardHelper
 open System
 open Phases
 open Yinsh.Rendering
@@ -13,7 +12,7 @@ let rec askForPosition() =
     match input with
     | [|letter; number|] ->
         let num = int(number)
-        let position = { Letter = letter.ToUpper(); Number = num }
+        let position = Position (letter.ToUpper()) num
         position
     | _ ->
         printf "Invalid position provided, please write the two coordinates of the intersection you want to place the piece, separated by space: "
@@ -59,19 +58,44 @@ let main argv =
             // to the name of the variable you define then declaring the type of the Union
             | PlaceRing(ringsPlaced) ->
                 writeAt (2, size.Height - 10) ConsoleColor.DarkRed "Please, write the two coordinates of the intersection you want to place a ring, separated by space: "
-                let newGameState = playRing gameState ringsPlaced
+                let newGameState = playRing gameState ringsPlaced (askForPosition())
                 play newGameState
             | PlaceToken ->
-                let newGameState = playPlaceToken gameState
+                let ringPositions = Board.findRingsInBoard gameState.Board gameState.Active
+                printfn "In which ring do you want to play a Token? Positions: %A" (ringPositions |> List.map(fun p -> p.ToString()))
+                let pos = askForPosition()
+                let newGameState = playPlaceToken gameState pos
                 play newGameState
             | MoveRing(ringIntersection) ->
-                let newGameState = playMoveRing gameState ringIntersection
+
+                let validRingMoves = Board.getValidMoves gameState.Board ringIntersection.Position
+                let _, validMoves = validRingMoves |> List.unzip
+
+                printfn "Please choose any of the following positions to place the Ring: %A" (validRingMoves |> List.map(fun p -> p.ToString())) 
+
+                let mutable placed = false
+                let mutable newRingPosition = askForPosition()
+
+                while not placed do
+                    if validMoves |> List.contains(newRingPosition) then
+                        let piece = { Color = gameState.Active.Color; Type = Ring }
+                        Board.putPieceOnIntersection gameState.Board ringIntersection.Position piece
+                        printfn "Token placed at %s" (ringIntersection.Position.ToString())
+                        placed <- true
+                    else
+                        printfn "Please choose one coordinate from the valid move list"
+                        newRingPosition <- askForPosition()
+
+                let newGameState = playMoveRing gameState ringIntersection newRingPosition
                 play newGameState
             | RemoveRows(rowsToRemove) ->
                 let newGameState = playRemoveRow gameState rowsToRemove
                 play newGameState
             | RemoveRing ->
-                let newGameState = playRemoveRing gameState
+                let ringPositions = Board.findRingsInBoard gameState.Board gameState.Active
+                printfn "In which ring do you want to remove? Positions: %A" (ringPositions |> List.map(fun p -> p.ToString()))
+                let pos = askForPosition()
+                let newGameState = playRemoveRing gameState pos
                 play newGameState
 
     play newGame |> ignore

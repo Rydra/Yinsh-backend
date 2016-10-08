@@ -77,6 +77,9 @@ type Position = {
     } with
     override x.ToString() = sprintf "(%s, %i)" x.Letter x.Number
 
+let Position letter number = 
+    { Letter = letter; Number = number }
+
 // An intersection is represented by a status (Empty or Filled with a Piece)
 // And a position
 type Intersection = {

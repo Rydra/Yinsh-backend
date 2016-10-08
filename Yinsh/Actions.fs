@@ -1,9 +1,8 @@
 ﻿module Actions
 
 open Domain
-open BoardHelper
+open Yinsh
 open System
-open SearchAlgorithms
 open System
 open Yinsh.Utils
 
@@ -11,10 +10,10 @@ open Yinsh.Utils
 // gameState alongside a boolean indicating whether the removal was successful or there was a problem
 let playRemoveRingAction gameState pos =
 
-    let intersection = findIntersectionInBoard gameState.Board pos
+    let intersection = Board.findIntersectionInBoard gameState.Board pos
     match intersection with
     | Some ({ Status = Filled({ Type = Ring }) } as x) ->
-        emptyIntersection gameState.Board x.Position
+        Board.emptyIntersection gameState.Board x.Position
         let newActivePlayer = gameState.Players |> Array.find (fun p -> p.Color = invertColor gameState.Active.Color)
 
         let updatedGameStatus =
@@ -31,4 +30,4 @@ let playRemoveRingAction gameState pos =
 // Removes a set of points from the specified position in the board
 // Warning: No check about whether the row positions are consecutive is made
 let playRemoveRowAction board rowToRemove =
-    rowToRemove |> List.iter (fun p -> emptyIntersection board p)
+    rowToRemove |> List.iter (fun p -> Board.emptyIntersection board p)
