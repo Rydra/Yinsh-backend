@@ -32,9 +32,9 @@ let main argv =
     /// These functions are private to the parent function and not exposed.
     /// In this case, it is a recursive helper function. In F# all recursive
     /// functions require the "rec" keyword
-    let rec play gameState =
-        Console.Clear()
-        prepareDisplay(size)
+    let rec play game =
+        //Console.Clear()
+        //prepareDisplay(size)
         
         /// LRN: Pattern matching is probably one of the most powerful tools
         /// of F# and functional languages in general (Haskell has it as well).
@@ -50,25 +50,26 @@ let main argv =
         ///
         /// Protip: It is not being used in this project, but you can make your own custom
         /// pattern matching with, for instance, strings, ints, and other objects. Check google!
-        match gameState.GameStatus with
-        | Finished(player) -> gameState
+        match game.GameStatus with
+        | Finished(player) -> game
         | InProgress ->
-            match gameState.CurrentPhase with
+            match game.CurrentAction with
             // LRN: A case in a pattern matching can have a type, and that type bounds
             // to the name of the variable you define then declaring the type of the Union
-            | PlaceRing(ringsPlaced) ->
-                writeAt (2, size.Height - 10) ConsoleColor.DarkRed "Please, write the two coordinates of the intersection you want to place a ring, separated by space: "
-                let newGameState = playRing gameState ringsPlaced (askForPosition())
+            | PlaceRing(state) ->
+                printfn "Please, write the two coordinates of the intersection you want to place a ring, separated by space: "
+                let newGameState = state.DoAction game (askForPosition())
                 play newGameState
-            | PlaceToken ->
-                let ringPositions = Board.findRingsInBoard gameState.Board gameState.Active
+            | PlaceToken(state) ->
+                let ringPositions = Board.findRingsInBoard game.Board game.Active
                 printfn "In which ring do you want to play a Token? Positions: %A" (ringPositions |> List.map(fun p -> p.ToString()))
                 let pos = askForPosition()
-                let newGameState = playPlaceToken gameState pos
+                let newGameState = game |> state.DoAction pos
                 play newGameState
-            | MoveRing(ringIntersection) ->
+            | MoveRing(state) ->
 
-                let validRingMoves = Board.getValidMoves gameState.Board ringIntersection.Position
+                let ringIntersection = state.RingToMove
+                let validRingMoves = game.Board |> Board.getValidMovesFrom ringIntersection.Position
                 let _, validMoves = validRingMoves |> List.unzip
 
                 printfn "Please choose any of the following positions to place the Ring: %A" (validRingMoves |> List.map(fun p -> p.ToString())) 
@@ -78,25 +79,33 @@ let main argv =
 
                 while not placed do
                     if validMoves |> List.contains(newRingPosition) then
-                        let piece = { Color = gameState.Active.Color; Type = Ring }
-                        Board.putPieceOnIntersection gameState.Board ringIntersection.Position piece
+                        let piece = { Color = game.Active.Color; Type = Ring }
+                        game.Board |> Board.placePieceAt ringIntersection.Position piece
                         printfn "Token placed at %s" (ringIntersection.Position.ToString())
                         placed <- true
                     else
                         printfn "Please choose one coordinate from the valid move list"
                         newRingPosition <- askForPosition()
 
-                let newGameState = playMoveRing gameState ringIntersection newRingPosition
+                let newGameState = game |> state.DoAction newRingPosition ringIntersection
                 play newGameState
-            | RemoveRows(rowsToRemove) ->
-                let newGameState = playRemoveRow gameState rowsToRemove
+            | ChooseRowToRemove(state) ->
+                printfn ("Which one of the following rows do you want to remove first?")
+                state.RowsToRemove |> List.iteri(fun i row -> printfn "%i- %A" i row)
+                // No checks
+                let choice = Console.ReadLine()
+                let chosenRow = state.RowsToRemove |> List.item(choice |> int)
+                let newGameState = game |> state.DoAction chosenRow
                 play newGameState
-            | RemoveRing ->
-                let ringPositions = Board.findRingsInBoard gameState.Board gameState.Active
+            | RemoveRow(state) ->
+                let newGameState = state.DoAction game state.RowToRemove
+                play newGameState
+            | RemoveRing(state) ->
+                let ringPositions = Board.findRingsInBoard game.Board game.Active
                 printfn "In which ring do you want to remove? Positions: %A" (ringPositions |> List.map(fun p -> p.ToString()))
                 let pos = askForPosition()
-                let newGameState = playRemoveRing gameState pos
-                play newGameState
+                let newGameState = game |> state.DoAction pos state.PlayerToRemoveRing
+                newGameState
 
     play newGame |> ignore
     0 // return an integer exit code

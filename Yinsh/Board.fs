@@ -50,7 +50,7 @@ module Board =
 
         { Intersections = intersections |> dict }
 
-    let findIntersectionInBoard board pos =
+    let findIntersection board pos =
         let found, intersection = board.Intersections.TryGetValue(pos)
         if found then Some intersection else None
 
@@ -89,24 +89,24 @@ module Board =
         match (nextnum, nextLetter) with
         | (Some nn, Some nl) -> 
             let newPos = { Letter = nl; Number = nn }
-            findIntersectionInBoard board newPos
+            findIntersection board newPos
         | _ -> None
 
     /// Puts a piece on an intersection, replacing whatever there was there.
-    let putPieceOnIntersection board pos piece =
-        match findIntersectionInBoard board pos with
+    let placePieceAt pos piece board =
+        match findIntersection board pos with
         | Some intersection -> intersection.Status <- Filled(piece)
         | None -> ()
 
     /// Removes any piece that may had been in the specified position
-    let emptyIntersection board pos =
-        match findIntersectionInBoard board pos with
+    let emptyIntersection pos board =
+        match findIntersection board pos with
         | Some intersection -> intersection.Status <- Empty
         | None -> ()
 
     /// Flips the color of a token piece in the specified position
     let flipToken board pos =
-        match findIntersectionInBoard board pos with
+        match findIntersection board pos with
         | Some ({Status = Filled({Type = Token} as p)} as intersection) -> 
             intersection.Status <- Filled({ p with Color = invertColor p.Color })
         | _ -> ()
@@ -138,7 +138,7 @@ module Board =
 
     // When you realize that actually what you are doing is trying to find solutions in a problem space...
     // This is a BFS implementation of finding all the possible moves that a Ring can do
-    let getValidMoves board position =
+    let getValidMovesFrom position board =
         let getNextIntersectionInDir = getNextIntersectionInDir board
 
         // Only empty spaces are allowed to be part of a solution
@@ -169,7 +169,7 @@ module Board =
                         let neighborNode = { Intersection = intersection; AllowedDirs = [dir]; HasJumped = node.HasJumped }
                         getPossibleNeighborsRec tail (neighborNode :: foundNeighs)
 
-                    | _ -> failwith "Unconsidered situation!"
+                    | _ -> getPossibleNeighborsRec tail foundNeighs
 
             getPossibleNeighborsRec node.AllowedDirs []
 
@@ -197,7 +197,7 @@ module Board =
 
                 getPossibleMovesRec updatedFrontier newFoundMoves
 
-        let startingIntersection = (findIntersectionInBoard board position)
+        let startingIntersection = (findIntersection board position)
         let startNode = buildNode (startingIntersection |> Option.get) possibleDirections false
         getPossibleMovesRec [startNode] []
 

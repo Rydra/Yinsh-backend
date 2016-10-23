@@ -59,7 +59,6 @@
     <Compile Include="GameHelper.fs" />
     <Compile Include="Legacy.fs" />
     <Compile Include="Rendering.fs" />
-    <Compile Include="Actions.fs" />
     <Compile Include="Phases.fs" />
     <Compile Include="Program.fs" />
     <None Include="App.config" />

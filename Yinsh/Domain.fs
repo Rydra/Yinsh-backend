@@ -18,7 +18,7 @@ open System.Collections.Generic
 /// they can implement enums, or a strong-typed version of the state pattern.
 /// You can even define different types for the discriminated unions. You
 /// usually use them in pattern matching
-type PlayerColor =
+type Color =
 | Black
 | White
 
@@ -39,7 +39,7 @@ let invertColor color =
 /// (pretty much like structs in C#) and implement member-wise
 /// equality in comparison, not by reference.
 type Player = {
-        Color: PlayerColor
+        Color: Color
         CompletedRows: int
     }
 
@@ -50,7 +50,7 @@ type PieceType =
 
 // A piece is defined by a type and a color
 type Piece = {
-        Color: PlayerColor
+        Color: Color
         Type: PieceType
     }
 
@@ -91,14 +91,38 @@ type GameStatus =
 | InProgress
 | Finished of winner: Player
 
+type PlaceRingAction = {
+    RingsPlaced : int
+}
+
+type PlaceTokenAction() = class end
+
+type MoveRingAction = {
+    RingToMove: Intersection
+}
+
+type ChooseRowToRemoveAction = {
+    RowsToRemove: Position list list
+}
+
+type RemoveRowToRemoveAction = {
+    RowToRemove: Position list
+}
+
+type RemoveRingAction = {
+    PlayerToRemoveRing: Player
+}
+
+
 // In this game there are several actions that the user can do in a certain gameState
 /// LRN: Another discriminated union. Each state embeds a diferent type of object
-type Phase =
-| PlaceRing of ringsPlaced: int
-| PlaceToken
-| MoveRing of ringToMoMove: Intersection
-| RemoveRows of rowsToRemove: Position list list
-| RemoveRing
+type Action =
+| PlaceRing of PlaceRingAction
+| PlaceToken of PlaceTokenAction
+| MoveRing of MoveRingAction
+| RemoveRow of RemoveRowToRemoveAction
+| ChooseRowToRemove of ChooseRowToRemoveAction
+| RemoveRing of RemoveRingAction
 
 // A board is represented by a set of intersections. For performance
 // purposes the intersections are indexed by position
@@ -106,10 +130,10 @@ type Board = {
     Intersections: IDictionary<Position, Intersection>
     }
 
-type GameState = {
+type Game = {
         Players: Player[]
         GameStatus: GameStatus
         Active: Player
         Board: Board
-        CurrentPhase: Phase
+        CurrentAction: Action
     }

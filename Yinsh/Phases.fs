@@ -8,141 +8,185 @@ open Domain
 open System
 open System
 open Yinsh.Utils
-open Actions
 open Yinsh
 open System.Diagnostics
+
+let private MAX_RINGS_TO_PLACE = 10
+
+
+let getPlayerBy color game =
+    game.Players |> Array.find (fun p -> p.Color = color)
+
+let private nextPlayerTurn game =
+    let newActivePlayer = game |> getPlayerBy (invertColor game.Active.Color)
+    { game with Active = newActivePlayer; }
+
+let private detectFiveInARow board =
+    let foundFiveInARow = Board.findFiveInARow board
+    if (foundFiveInARow |> List.length) > 0 then (true, foundFiveInARow)
+    else (false, [])
+
+let private checkWinCondition game =
+    let updatedGameStatus =
+        let winner = game.Players |> Array.tryFind(fun p -> p.CompletedRows >= 3)
+        match winner with
+        | Some p -> Finished p
+        | None -> InProgress
+
+    { game with GameStatus = updatedGameStatus }
+
+let private removeRow row board =
+    row |> List.iter (fun p -> board |> Board.emptyIntersection p)
+
+let private changeToRemoveRingPhase player game =
+    { game with CurrentAction = RemoveRing ({ PlayerToRemoveRing = player }) }
+
+let private changeToChooseRemoveRowPhase foundFiveInARow game =
+    { game with CurrentAction = ChooseRowToRemove { RowsToRemove = foundFiveInARow } }
+
+let private changeToRemoveRowPhase foundFiveInARow game =
+    { game with CurrentAction = RemoveRow { RowToRemove = foundFiveInARow } }
+
+let private changeToMoveRingPhase ringIntersection game =
+    { game with CurrentAction = MoveRing({ RingToMove = ringIntersection }) }
+
+let private changeToPlaceTokenPhase game =
+    { game with CurrentAction = PlaceToken(PlaceTokenAction()); }
+
+let private changeToAction action game =
+    { game with CurrentAction = action; }
+
+let private getRowColor row board =
+    match Board.findIntersection board (row |> List.head) with
+    | Some { Status = Filled(_ as piece) } -> piece.Color
+    | _ -> failwith "Wrong!"
+        
+let private playRemoveRow game rowToRemove =
+    let rowcolor = game.Board |> getRowColor rowToRemove
+    game.Board |> removeRow rowToRemove
+    game |> changeToRemoveRingPhase (game |> getPlayerBy rowcolor)
+
+let private addCompletedRowToPlayer player game =
+    let plIdx = game.Players |> Array.findIndex(fun p -> p = player)
+    game.Players.[plIdx] <- { game.Players.[plIdx] with CompletedRows = game.Players.[plIdx].CompletedRows + 1 }
 
 /// LRN: As you may see, even if F# is strongly and statically typed, you often do not need to declare
 /// the types of your arguments and variables. This is because of the powerful type inference of F#.
 /// Does that bother you? Novice developers usually require to see which type each variable/argument has 
 /// in order to understand the code. Experienced developers only need to understand the CONCEPT behind
-/// each variable/argument, giving special value to meaningful names. This reasults in code less polluted
+/// each variable/argument, giving special value to meaningful names. This results in code less polluted
 /// and faster to read and understand.
-let playRemoveRing gameState pos =
+let private removeRingFrom position (player: Player) game =
 
-    // Get a list of the positions of rings for
-    // the active player
-    // LRN: If you come from a background where you have strong functional query libraries
-    // like LINQ for C# or underscoreJS in Javascript, F# has the List, Seq among other modules
-    // that contain a lot of functions to manipulate collections of objects. In this example,
-    // filter = where from LINQ, map = Select from LINQ, etc. I personally find the F# more powerful
-    // thanks to the pipeline |> and no need of using extension methods.
-    let ringPositions = 
-        gameState.Board.Intersections 
-        |> Seq.filter(fun kvp ->
-            let value = kvp.Value
-            match value.Status with
-            | Filled(p) when p.Color = gameState.Active.Color && p.Type = Ring -> true
-            | _ -> false)
-        |> Seq.map(fun kvp -> kvp.Key)
-        |> Seq.toList
+    let color = player.Color
+    match Board.findIntersection game.Board position with
+    | Some ({ Status = Filled({ Type = Ring; Color = color }) } as intersection) ->
+        game.Board |> Board.emptyIntersection intersection.Position
+        game |> addCompletedRowToPlayer player
+        let game = game |> checkWinCondition
 
-    // See how we can easily return and split tuples to different variables
-    let ok, newgameState = playRemoveRingAction gameState pos
+        let found, fiveInARow = game.Board |> detectFiveInARow
 
-    if ok then
-        newgameState
-    else
+        if found then 
+            if (fiveInARow |> List.length) = 1 then game |> changeToRemoveRowPhase (fiveInARow |> List.head)
+            else game |> changeToChooseRemoveRowPhase fiveInARow
+        else game |> nextPlayerTurn |> changeToPlaceTokenPhase
+    | _ ->
         printfn "Please provide the position of one of your rings"
-        gameState
+        game
 
-let playRemoveRow gameState rowsToRemove =
-    let nRows = (rowsToRemove |> List.length)
-    if nRows = 1 then
-        playRemoveRowAction gameState.Board rowsToRemove.[0]
-    else
-        // TODO: Allow to choose row
-        Debug.WriteLine "You formed several five in a row!"
-        let optionDict = dict (List.zip [0 .. nRows] rowsToRemove)
-        optionDict |> Seq.iter(fun kvp -> printfn "%i- %A" kvp.Key kvp.Value)
-        let value = 0
-        playRemoveRowAction gameState.Board optionDict.[int value]
+let flipIntermediateTokens startPos endPos direction board =
+    let rec constructPath currentIntersection path =
+        if currentIntersection.Position = endPos then 
+            path
+        else
+            match Board.getNextIntersectionInDir board currentIntersection.Position direction 1 with
+            | Some intersection -> constructPath intersection (intersection.Position :: path)
+            | None -> failwith "This should not be possible..."
 
-    let newActivePlayer = gameState.Players |> Array.find (fun p -> p.Color = invertColor gameState.Active.Color)
+    let nextMove = (Board.getNextIntersectionInDir board startPos direction 1).Value
+    let path = constructPath nextMove []
+    path |> List.iter(fun p -> Board.flipToken board p)
 
-    let updatedGameStatus =
-        let winner = gameState.Players |> Array.tryFind(fun p -> p.CompletedRows >= 3)
-        match winner with
-        | Some p -> Finished p
-        | None -> InProgress
+let private moveRingTo position (ringIntersection:Intersection) game =
 
-    let updatedGameState = { gameState with Active = newActivePlayer; CurrentPhase = RemoveRing; GameStatus = updatedGameStatus }
-    updatedGameState
-
-let playMoveRing gameState (intersection:Intersection) newRingPosition =
-
-    let validRingMoves = Board.getValidMoves gameState.Board intersection.Position
+    let validRingMoves =  game.Board |> Board.getValidMovesFrom ringIntersection.Position
     let _, validMoves = validRingMoves |> List.unzip
 
-    if validMoves |> List.contains(newRingPosition) |> not then
-        gameState
+    if validMoves |> List.contains(position) |> not then
+        game
     else
-        // Flip any intermediate tokens
-        let dir, pos = validRingMoves |> List.find(fun (_, pos) -> pos = newRingPosition)
-        let rec constructPath currPos path =
-            if currPos = pos then 
-                path
-            else
-                let isect = Board.getNextIntersectionInDir gameState.Board intersection.Position dir 1
-                match isect with
-                | Some i -> constructPath i.Position (i.Position :: path)
-                | None -> failwith "This should not be possible..."
+        game.Board |> Board.emptyIntersection ringIntersection.Position
+        let piece = { Color = game.Active.Color; Type = Ring }
+        game.Board |> Board.placePieceAt position piece
 
-        let nextMove = (Board.getNextIntersectionInDir gameState.Board intersection.Position dir 1).Value.Position
-        let path = constructPath nextMove []
-        path |> List.iter(fun p -> Board.flipToken gameState.Board p)
+        // Determine direction to reach position
+        let direction, _ = validRingMoves |> List.find(fun (_, pos) -> pos = position)
+        game.Board |> flipIntermediateTokens ringIntersection.Position position direction
 
-        // Detect any five in a row. TODO: We should iterate over this!
-        let fiveInARow = Board.findFiveInARow gameState.Board
-        let nRows = (fiveInARow |> List.length)
+        let found, fiveInARow = game.Board |> detectFiveInARow
 
-        if nRows > 0 then
-            let updatedGameState = { gameState with CurrentPhase = RemoveRows fiveInARow }
-            updatedGameState
-        else
-            // No rows. Next player turn
-            let newActivePlayer = gameState.Players |> Array.find (fun p -> p.Color = invertColor gameState.Active.Color)
-            let updatedGameState = { gameState with Active = newActivePlayer; CurrentPhase = PlaceToken; }
-            updatedGameState
+        if found then 
+            if (fiveInARow |> List.length) = 1 then game |> changeToRemoveRowPhase (fiveInARow |> List.head)
+            else game |> changeToChooseRemoveRowPhase fiveInARow
+        else game |> nextPlayerTurn |> changeToPlaceTokenPhase
 
-let playPlaceToken gameState pos =
-
-    let ringPositions = Board.findRingsInBoard gameState.Board gameState.Active
-    let intersection = Board.findIntersectionInBoard gameState.Board pos
+let private isValidPositionForTokenPlacement intersection game =
+    let ringPositions = Board.findRingsInBoard game.Board game.Active
     match intersection with
-    | Some ({ Status = Filled(_) } as x) when ringPositions |> List.contains x.Position ->
-        let piece = { Color = gameState.Active.Color; Type = Token }
-        Board.putPieceOnIntersection gameState.Board pos piece
-        let updatedGameState = { gameState with CurrentPhase = MoveRing(x) }
-        updatedGameState
+     | { Status = Filled(_) } when ringPositions |> List.contains intersection.Position -> true
+     | _ -> false
+
+let private placeTokenAt position game =
+
+    match Board.findIntersection game.Board position with
+    | Some intersection when isValidPositionForTokenPlacement intersection game -> 
+        let piece = { Color = game.Active.Color; Type = Token }
+        game.Board |> Board.placePieceAt position piece
+        game |> changeToMoveRingPhase intersection
+
     | _ ->
         printfn "Please provide the position of one of your rings"
-        gameState
+        game
 
-let playRing gameState ringsPlaced pos =
+let private placeRingAt position game ringsCurrentlyPlaced =
 
-    // Validate the intersection if the intersection is empty
-    let intersection = Board.findIntersectionInBoard gameState.Board pos
-    match intersection with
-    | Some { Status = Empty } as x ->
+    match Board.findIntersection game.Board position with
+    | Some { Status = Empty } ->
 
-        let piece = { Color = gameState.Active.Color; Type = Ring }
-        Board.putPieceOnIntersection gameState.Board pos piece
+        let piece = { Color = game.Active.Color; Type = Ring }
+        game.Board |> Board.placePieceAt position piece
 
-        Debug.WriteLine (sprintf "%s ring placed at %s" (colorStr gameState.Active.Color) (pos.ToString()))
+        Debug.WriteLine (sprintf "%s ring placed at %s" (colorStr game.Active.Color) (position.ToString()))
 
-        // Decide if we ended this phase
-        let updatedPhase = 
-            if ringsPlaced = 10 then 
+        let nextAction = 
+            if ringsCurrentlyPlaced + 1 = MAX_RINGS_TO_PLACE then 
                 Debug.WriteLine (sprintf "The 10 Rings have been placed. Let the game Begin!")
-                PlaceToken
+                PlaceToken(PlaceTokenAction())
             else 
-                PlaceRing(ringsPlaced + 1)
+                PlaceRing({RingsPlaced = ringsCurrentlyPlaced + 1 })
 
-        let newActivePlayer = gameState.Players |> Array.find (fun p -> p.Color = invertColor gameState.Active.Color)
-        let updatedGameState = { gameState with Active = newActivePlayer; CurrentPhase = updatedPhase }
-
-        updatedGameState
+        game |> nextPlayerTurn |> changeToAction nextAction
     | _ ->
         Debug.WriteLine (sprintf "Please provide an empty intersection for ring placement")
-        gameState
+        game
+
+type ActionExecuter = Game -> Action -> Game
+
+type PlaceRingAction with
+    member this.DoAction game pos = placeRingAt pos game this.RingsPlaced
+
+type PlaceTokenAction with
+    member this.DoAction = placeTokenAt
+
+type MoveRingAction with
+    member this.DoAction = moveRingTo
+
+type RemoveRowToRemoveAction with
+    member this.DoAction = playRemoveRow
+
+type RemoveRingAction with
+    member this.DoAction = removeRingFrom
+
+type ChooseRowToRemoveAction with
+    member this.DoAction = changeToRemoveRowPhase 
